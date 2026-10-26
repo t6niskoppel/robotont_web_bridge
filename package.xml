@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robotont_web_bridge</name>
+  <version>0.0.1</version>
+  <description>ROS 2 API for Robotont's web dashboard and Blockly.</description>
+  <maintainer email="t6niskoppel@gmail.com">Tõnis Koppel</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>robotont_msgs</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rosbridge_server</exec_depend>
+  <exec_depend>rosapi</exec_depend>
+  <exec_depend>web_video_server</exec_depend>
+  <exec_depend>compressed_image_transport</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

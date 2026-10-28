@@ -1,14 +1,15 @@
 """Robotont ROS node next to rosbridge: finds robots, keeps motion safe, drives the LED module.
 
 rosbridge (rosbridge_server) is the web bridge and web_video_server serves the camera images; this node
-only adds what neither of them does:
+only adds what neither of them does. Topics are relative to the node namespace, e.g. /rt55/web/robots when
+launched with namespace:=rt55, so several robots can share a ROS domain without mixing their web pages:
 
-* /web/robots     (std_msgs/String, JSON list) robots found in this ROS domain, by namespace.
-* /web/command    (std_msgs/String, JSON {robot, vx, vy, wz}) velocity request. It is re-published to
+* web/robots      (std_msgs/String, JSON list) robots found in this ROS domain, by namespace.
+* web/command     (std_msgs/String, JSON {robot, vx, vy, wz}) velocity request. It is re-published to
                   <robot>/cmd_vel at 20 Hz and expires after 0.5 s, so a closed browser stops the robot.
-* /web/stop       (std_msgs/String, JSON {robot}) zero velocity now.
-* /web/led        (std_msgs/String, JSON {robot, side, color}) colour for 'all' or a side.
-* /web/distances  (std_msgs/String, JSON {robot: {front|back|left|right: reading}}) from <robot>/scan.
+* web/stop        (std_msgs/String, JSON {robot}) zero velocity now.
+* web/led         (std_msgs/String, JSON {robot, side, color}) colour for 'all' or a side.
+* web/distances   (std_msgs/String, JSON {robot: {front|back|left|right: reading}}) from <robot>/scan.
 
 A robot is any namespace that has a cmd_vel subscriber (the real driver or the Gazebo bridge).
 """
@@ -175,11 +176,11 @@ class WebBridge(Node):
         self.robots = {}
         self.found = []
         self.pending_timers = []
-        self.robots_publisher = self.create_publisher(String, '/web/robots', 10)
-        self.distances_publisher = self.create_publisher(String, '/web/distances', 10)
-        self.create_subscription(String, '/web/command', self.on_command, 10)
-        self.create_subscription(String, '/web/stop', self.on_stop, 10)
-        self.create_subscription(String, '/web/led', self.on_led, 10)
+        self.robots_publisher = self.create_publisher(String, 'web/robots', 10)
+        self.distances_publisher = self.create_publisher(String, 'web/distances', 10)
+        self.create_subscription(String, 'web/command', self.on_command, 10)
+        self.create_subscription(String, 'web/stop', self.on_stop, 10)
+        self.create_subscription(String, 'web/led', self.on_led, 10)
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(0.05, self.tick, clock=steady)
         self.create_timer(1.0, self.discover, clock=steady)

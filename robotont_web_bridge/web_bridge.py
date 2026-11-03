@@ -41,9 +41,9 @@ LED_COUNT = 60
 # Gen 3 mainboard: pixel 0 is near the centre of the straight front edge.
 LED_GROUPS = {
     'front': ((0, 9), (51, 59)),
-    'right': ((10, 22),),
+    'left': ((10, 22),),
     'back': ((23, 36),),
-    'left': ((37, 50),),
+    'right': ((37, 50),),
 }
 HEX_COLOR = re.compile(r'^#[0-9a-fA-F]{6}$')
 

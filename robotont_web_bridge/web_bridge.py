@@ -10,6 +10,10 @@ launched with namespace:=rt55, so several robots can share a ROS domain without 
 * web/stop        (std_msgs/String, JSON {robot}) zero velocity now.
 * web/led         (std_msgs/String, JSON {robot, side, color}) colour for 'all' or a side.
 * web/distances   (std_msgs/String, JSON {robot: {front|back|left|right: reading}}) from <robot>/scan.
+* web/topic_rates (std_msgs/String, any) asks for a topic survey. About 3 s later web/topics
+                  (std_msgs/String, JSON list of {name, type, publishers, subscribers, hz}) lists every
+                  topic in the ROS domain with the rate it was seen publishing at. Only on request: it
+                  subscribes to every published topic for the sampling time.
 
 A robot is any namespace that has a cmd_vel subscriber (the real driver or the Gazebo bridge).
 """
@@ -24,6 +28,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
 from rclpy.time import Time
+from rosidl_runtime_py.utilities import get_message
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
@@ -36,6 +41,7 @@ from .camera import camera_topics
 MAX_LINEAR = 0.3
 MAX_ANGULAR = 1.0
 COMMAND_TIMEOUT = 0.5
+TOPIC_SAMPLE_SECONDS = 3.0
 CMD_VEL = re.compile(r'^(?:/([A-Za-z0-9_]+))?/cmd_vel$')
 LED_COUNT = 60
 # Gen 3 mainboard: pixel 0 is near the centre of the straight front edge.
@@ -178,9 +184,12 @@ class WebBridge(Node):
         self.pending_timers = []
         self.robots_publisher = self.create_publisher(String, 'web/robots', 10)
         self.distances_publisher = self.create_publisher(String, 'web/distances', 10)
+        self.topics_publisher = self.create_publisher(String, 'web/topics', 1)
+        self.sampling = False
         self.create_subscription(String, 'web/command', self.on_command, 10)
         self.create_subscription(String, 'web/stop', self.on_stop, 10)
         self.create_subscription(String, 'web/led', self.on_led, 10)
+        self.create_subscription(String, 'web/topic_rates', self.on_topic_rates, 1)
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(0.05, self.tick, clock=steady)
         self.create_timer(1.0, self.discover, clock=steady)
@@ -273,6 +282,41 @@ class WebBridge(Node):
                 raise ValueError('Unknown LED group')
             robot.set_led(color, spans)
         self.dispatch(message, apply)
+
+    def on_topic_rates(self, _message):
+        if self.sampling:
+            return
+        self.sampling = True
+        topics, counts, subscriptions = [], {}, []
+        for name, types in sorted(self.get_topic_names_and_types()):
+            entry = {'name': name, 'type': types[0] if types else '', 'hz': None,
+                     'publishers': self.count_publishers(name), 'subscribers': self.count_subscribers(name)}
+            topics.append(entry)
+            if not entry['publishers']:
+                continue
+            try:
+                message_type = get_message(entry['type'])
+            except (ValueError, AttributeError, ImportError):
+                continue
+            counts[name] = 0
+
+            def count(_data, name=name):
+                counts[name] += 1
+            # Raw: the messages are counted, never decoded.
+            subscriptions.append(self.create_subscription(
+                message_type, name, count, qos_profile_sensor_data, raw=True))
+        started = time.monotonic()
+
+        def finish():
+            seconds = time.monotonic() - started
+            for entry in topics:
+                if entry['name'] in counts:
+                    entry['hz'] = round(counts[entry['name']] / seconds, 1)
+            for subscription in subscriptions:
+                self.destroy_subscription(subscription)
+            self.sampling = False
+            self.topics_publisher.publish(String(data=json.dumps(topics)))
+        self.after(TOPIC_SAMPLE_SECONDS, finish)
 
     def tick(self):
         for robot in self.robots.values():

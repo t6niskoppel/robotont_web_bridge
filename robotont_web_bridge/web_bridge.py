@@ -8,7 +8,8 @@ launched with namespace:=rt55, so several robots can share a ROS domain without 
 * web/command     (std_msgs/String, JSON {robot, vx, vy, wz}) velocity request. It is re-published to
                   <robot>/cmd_vel at 20 Hz and expires after 0.5 s, so a closed browser stops the robot.
 * web/stop        (std_msgs/String, JSON {robot}) zero velocity now.
-* web/led         (std_msgs/String, JSON {robot, side, color}) colour for 'all' or a side.
+* web/led         (std_msgs/String, JSON {robot, side, color} or {robot, first, last, color}) colour for
+                  'all', a side, or the pixels first..last (0 to 59, both included).
 * web/distances   (std_msgs/String, JSON {robot: {front|back|left|right: reading}}) from <robot>/scan.
 * web/topic_rates (std_msgs/String, any) asks for a topic survey. About 3 s later web/topics
                   (std_msgs/String, JSON list of {name, type, publishers, subscribers, hz}) lists every
@@ -274,7 +275,13 @@ class WebBridge(Node):
             color = payload.get('color')
             if not isinstance(color, str) or not HEX_COLOR.match(color):
                 raise ValueError('LED color must be a hex RGB color')
-            if side == 'all':
+            if 'first' in payload or 'last' in payload:
+                first, last = payload.get('first'), payload.get('last')
+                if not all(isinstance(n, int) and not isinstance(n, bool) for n in (first, last)) \
+                        or not 0 <= first <= last < LED_COUNT:
+                    raise ValueError(f'LED pixels are whole numbers from 0 to {LED_COUNT - 1}, first before last')
+                spans = [(first, last)]
+            elif side == 'all':
                 spans = [(0, LED_COUNT - 1)]
             elif side in LED_GROUPS:
                 spans = list(LED_GROUPS[side])
